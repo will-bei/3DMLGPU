@@ -25,6 +25,7 @@ from voxnerf.render import (
 )
 from voxnerf.vis import stitch_vis, bad_vis as nerf_vis
 
+from torch.profiler import profile, record_function, ProfilerActivity
 
 device_glb = torch.device("cuda")
 
@@ -46,7 +47,7 @@ class SJC(BaseConf):
         scale=100.0
     )
     lr:         float = 0.05
-    n_steps:    int = 10000
+    n_steps:    int = 1000
     vox:        VoxConfig = VoxConfig(
         model_type="V_SD", grid_size=100, density_shift=-1.0, c=3,
         blend_bg_texture=True, bg_texture_hw=4,
@@ -107,6 +108,7 @@ def sjc_3d(
 
     same_noise = torch.randn(1, 4, H, W, device=model.device).repeat(bs, 1, 1, 1)
 
+    prof.start() 
     with tqdm(total=n_steps) as pbar, \
         HeartBeat(pbar) as hbeat, \
             EventStorage() as metric:
@@ -117,7 +119,8 @@ def sjc_3d(
             p = f"{prompt_prefixes[i]} {model.prompt}"
             score_conds = model.prompts_emb([p])
 
-            y, depth, ws = render_one_view(vox, aabb, H, W, Ks[i], poses[i], return_w=True)
+            with record_function("forward_pass"):
+                y, depth, ws = render_one_view(vox, aabb, H, W, Ks[i], poses[i], return_w=True)
 
             if isinstance(model, StableDiffusion):
                 pass
@@ -125,26 +128,28 @@ def sjc_3d(
                 y = torch.nn.functional.interpolate(y, (target_H, target_W), mode='bilinear')
 
             opt.zero_grad()
+            
+            with record_function("loss_calc"):
+                with torch.no_grad():
+                    chosen_σs = np.random.choice(ts, bs, replace=False)
+                    chosen_σs = chosen_σs.reshape(-1, 1, 1, 1)
+                    chosen_σs = torch.as_tensor(chosen_σs, device=model.device, dtype=torch.float32)
+                    # chosen_σs = us[i]
 
-            with torch.no_grad():
-                chosen_σs = np.random.choice(ts, bs, replace=False)
-                chosen_σs = chosen_σs.reshape(-1, 1, 1, 1)
-                chosen_σs = torch.as_tensor(chosen_σs, device=model.device, dtype=torch.float32)
-                # chosen_σs = us[i]
+                    noise = torch.randn(bs, *y.shape[1:], device=model.device)
 
-                noise = torch.randn(bs, *y.shape[1:], device=model.device)
+                    zs = y + chosen_σs * noise
+                    Ds = model.denoise(zs, chosen_σs, **score_conds)
 
-                zs = y + chosen_σs * noise
-                Ds = model.denoise(zs, chosen_σs, **score_conds)
+                    if var_red:
+                        grad = (Ds - y) / chosen_σs
+                    else:
+                        grad = (Ds - zs) / chosen_σs
 
-                if var_red:
-                    grad = (Ds - y) / chosen_σs
-                else:
-                    grad = (Ds - zs) / chosen_σs
-
-                grad = grad.mean(0, keepdim=True)
-
-            y.backward(-grad, retain_graph=True)
+                    grad = grad.mean(0, keepdim=True)
+            
+            with record_function("backward_pass"):
+                y.backward(-grad, retain_graph=True)
 
             if depth_weight > 0:
                 center_depth = depth[7:-7, 7:-7]
@@ -161,7 +166,10 @@ def sjc_3d(
                 emptiness_loss *= emptiness_multiplier
             emptiness_loss.backward()
 
-            opt.step()
+            with record_function("optimization"):
+                opt.step()
+
+            prof.step() 
 
             metric.put_scalars(**tsr_stats(y))
 
@@ -192,6 +200,20 @@ def sjc_3d(
         metric.step()
 
         hbeat.done()
+
+    prof.stop()
+    print("\nTop 30 results sorted by CPU time avg:\n")
+    print(prof.key_averages().table(sort_by="cpu_time_avg", row_limit=30))
+
+    print("\nTop 30 results sorted by CUDA time avg:\n")
+    print(prof.key_averages().table(sort_by="cuda_time_avg", row_limit=30))
+
+    prof_data = prof.key_averages().table(sort_by="cpu_time_avg", row_limit=30)
+    output_json = {"profiling_results": prof_data}
+
+    # Save to a JSON file
+    with open("torch_profiling.json", "w") as json_file:
+        json.dump(output_json, json_file, indent=4)
 
 
 @torch.no_grad()

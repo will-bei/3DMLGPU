@@ -25,6 +25,7 @@ from voxnerf.render import (
 )
 from voxnerf.vis import stitch_vis, bad_vis as nerf_vis
 
+from torch.autograd.profiler import emit_nvtx
 
 device_glb = torch.device("cuda")
 
@@ -117,14 +118,24 @@ def sjc_3d(
             p = f"{prompt_prefixes[i]} {model.prompt}"
             score_conds = model.prompts_emb([p])
 
+            torch.cuda.nvtx.range_push("Forward Pass")
             y, depth, ws = render_one_view(vox, aabb, H, W, Ks[i], poses[i], return_w=True)
+            torch.cuda.nvtx.range_pop()
 
             if isinstance(model, StableDiffusion):
                 pass
             else:
                 y = torch.nn.functional.interpolate(y, (target_H, target_W), mode='bilinear')
 
+            torch.cuda.nvtx.range_push("Loss Calculation")
+            loss = torch.nn.functional.mse_loss(y, depth)
+            torch.cuda.nvtx.range_pop()
+
+            torch.cuda.nvtx.range_push("Backward Pass")
             opt.zero_grad()
+            torch.cuda.nvtx.range_pop()
+
+            
 
             with torch.no_grad():
                 chosen_σs = np.random.choice(ts, bs, replace=False)
@@ -161,7 +172,9 @@ def sjc_3d(
                 emptiness_loss *= emptiness_multiplier
             emptiness_loss.backward()
 
+            torch.cuda.nvtx.range_push("Optimization Step")
             opt.step()
+            torch.cuda.nvtx.range_pop()
 
             metric.put_scalars(**tsr_stats(y))
 
