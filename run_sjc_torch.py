@@ -29,6 +29,14 @@ from torch.profiler import profile, record_function, ProfilerActivity
 
 device_glb = torch.device("cuda")
 
+import json
+from torch.profiler import profile, ProfilerActivity
+
+prof = profile(
+    activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+    record_shapes=True,
+    with_stack=True
+)
 
 def tsr_stats(tsr):
     return {
@@ -208,12 +216,14 @@ def sjc_3d(
     print("\nTop 30 results sorted by CUDA time avg:\n")
     print(prof.key_averages().table(sort_by="cuda_time_avg", row_limit=30))
 
-    prof_data = prof.key_averages().table(sort_by="cpu_time_avg", row_limit=30)
-    output_json = {"profiling_results": prof_data}
+    # Get the profiler output as a formatted string
+    prof_table_str = prof.key_averages().table(sort_by="cpu_time_avg", row_limit=30)
 
-    # Save to a JSON file
-    with open("torch_profiling.json", "w") as json_file:
-        json.dump(output_json, json_file, indent=4)
+    # Save to a text file
+    with open("torch_profiling.txt", "w") as text_file:
+        text_file.write(prof_table_str)
+
+    print("Text file saved successfully as 'torch_profiling.txt'!")
 
 
 @torch.no_grad()
