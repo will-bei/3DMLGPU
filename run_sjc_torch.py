@@ -211,13 +211,13 @@ def sjc_3d(
 
     prof.stop()
     print("\nTop 30 results sorted by CPU time avg:\n")
-    print(prof.key_averages().table(sort_by="cpu_time_avg", row_limit=30))
+    print(prof.key_averages().table(sort_by="cpu_time_str", row_limit=30))
 
     print("\nTop 30 results sorted by CUDA time avg:\n")
-    print(prof.key_averages().table(sort_by="cuda_time_avg", row_limit=30))
+    print(prof.key_averages().table(sort_by="cuda_time_str", row_limit=30))
 
     # Get the profiler output as a formatted string
-    prof_table_str = prof.key_averages().table(sort_by="cpu_time_avg", row_limit=30)
+    prof_table_str = prof.key_averages().table(sort_by="cpu_time_str", row_limit=30)
 
     # Save to a text file
     with open("torch_profiling.txt", "w") as text_file:
