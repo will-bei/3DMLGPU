@@ -224,7 +224,17 @@ def sjc_3d(
         text_file.write(prof_table_str)
 
     print("Text file saved successfully as 'torch_profiling.txt'!")
-
+    profiler =  torch.profiler.profile(
+        schedule=train_prof_schedule,
+        activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+        on_trace_ready=lambda prof: (
+            print(f"Saving trace to {os.path.join(logdir, 'trace.json')}"),
+            prof.export_chrome_trace(os.path.join(logdir, 'trace.json'))
+        ),
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=args.with_stack
+    )
 
 @torch.no_grad()
 def evaluate(score_model, vox, poser):
