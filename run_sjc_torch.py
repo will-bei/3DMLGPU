@@ -33,6 +33,53 @@ device_glb = torch.device("cuda")
 import json
 from torch.profiler import profile, ProfilerActivity
 
+class PositionalEncoding(torch.nn.Module):
+    def __init__(self, num_freqs=10):
+        super().__init__()
+        self.num_freqs = num_freqs
+        self.freq_bands = 2 ** torch.arange(num_freqs) * np.pi
+
+    def forward(self, x):
+        out = [x]
+        for freq in self.freq_bands:
+            out.append(torch.sin(freq * x))
+            out.append(torch.cos(freq * x))
+        return torch.cat(out, dim=-1)
+
+
+class SimpleNeRFMLP(torch.nn.Module):
+    def __init__(self, input_dim=3 + 3 * 2 * 10, hidden_dim=128):
+        super().__init__()
+        self.layers = torch.nn.Sequential(
+            torch.nn.Linear(input_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, 4)  # sigma + rgb (r,g,b)
+        )
+
+    def forward(self, x):
+        out = self.layers(x)
+        sigma = torch.relu(out[:, 0])
+        rgb = torch.sigmoid(out[:, 1:4])
+        return sigma, rgb
+
+
+class MLPScoreAdapter:
+    def __init__(self, mlp, pos_encoder=None):
+        self.mlp = mlp
+        self.pos_encoder = pos_encoder
+        self.device = next(mlp.parameters()).device
+
+    def forward(self, pts):
+        if self.pos_encoder is not None:
+            pts_enc = self.pos_encoder(pts)
+        else:
+            pts_enc = pts
+        sigma, rgb = self.mlp(pts_enc)
+        return sigma, rgb
+
+
 TRAIN_WAIT_STEPS = 1
 TRAIN_WARMUP_STEPS = 2
 TRAIN_ACTIVE_STEPS = 5
@@ -100,7 +147,12 @@ class SJC(BaseConf):
         cfgs = self.dict()
 
         family = cfgs.pop("family")
-        model = getattr(self, family).make()
+
+        # Instantiate raw MLP and positional encoder
+        device = device_glb
+        pos_encoder = PositionalEncoding(num_freqs=10).to(device)
+        mlp = SimpleNeRFMLP(input_dim=3 + 3 * 2 * 10).to(device)
+        model = MLPScoreAdapter(mlp, pos_encoder)
 
         cfgs.pop("vox")
         vox = self.vox.make()
@@ -145,8 +197,7 @@ def sjc_3d(
             score_conds = model.prompts_emb([p])
 
             with record_function("forward_pass"):
-                y, depth, ws = render_one_view(vox, aabb, H, W, Ks[i], poses[i], return_w=True)
-
+                y, depth, ws = render_one_view(vox, aabb, H, W, Ks[i], poses[i], model, return_w=True)
             if isinstance(model, StableDiffusion):
                 pass
             else:
@@ -262,7 +313,7 @@ def evaluate(score_model, vox, poser):
             break
 
         pose = poses[i]
-        y, depth = render_one_view(vox, aabb, H, W, K, pose)
+        y, depth = render_one_view(vox, aabb, H, W, K, pose, model)
         if isinstance(score_model, StableDiffusion):
             y = score_model.decode(y)
         vis_routine(metric, y, depth)
@@ -280,13 +331,13 @@ def evaluate(score_model, vox, poser):
     metric.step()
 
 
-def render_one_view(vox, aabb, H, W, K, pose, return_w=False):
+def render_one_view(vox, aabb, H, W, K, pose, model, return_w=False):
     N = H * W
     ro, rd = rays_from_img(H, W, K, pose)
     ro, rd, t_min, t_max = scene_box_filter(ro, rd, aabb)
     assert len(ro) == N, "for now all pixels must be in"
     ro, rd, t_min, t_max = as_torch_tsrs(vox.device, ro, rd, t_min, t_max)
-    rgbs, depth, weights = render_ray_bundle(vox, ro, rd, t_min, t_max)
+    rgbs, depth, weights = render_ray_bundle(model, ro, rd, t_min, t_max)
 
     rgbs = rearrange(rgbs, "(h w) c -> 1 c h w", h=H, w=W)
     depth = rearrange(depth, "(h w) 1 -> h w", h=H, w=W)

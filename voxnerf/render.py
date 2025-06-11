@@ -2,6 +2,22 @@ import numpy as np
 import torch
 from my3d import unproject
 
+class PositionalEncoding(torch.nn.Module):
+    def __init__(self, num_freqs=10):
+        super().__init__()
+        self.num_freqs = num_freqs
+        self.freq_bands = 2 ** torch.arange(num_freqs).float()  # [num_freqs]
+
+    def forward(self, x):
+        """
+        x: [N, 3]
+        returns: [N, 3 + 3 * 2 * num_freqs]
+        """
+        out = [x]
+        for freq in self.freq_bands.to(x.device):
+            out.append(torch.sin(freq * x))
+            out.append(torch.cos(freq * x))
+        return torch.cat(out, dim=-1)
 
 def subpixel_rays_from_img(H, W, K, c2w_pose, normalize_dir=True, f=8):
     assert c2w_pose[3, 3] == 1.
@@ -213,6 +229,53 @@ def integrated_pos_enc(mean, cov, num_freqs=10):
     return encoded
 
 def render_ray_bundle(model, ro, rd, t_min, t_max):
+    """
+    model: wrapper with attributes:
+      - forward(pts) that returns (density, color)
+      - blend_bg_texture, compute_bg(), feats2color() (optional)
+      - get_num_samples()
+    """
+    num_samples, step_size = model.get_num_samples((t_max - t_min).max())
+    n, k = len(ro), num_samples
+
+    ticks = step_size * torch.arange(k, device=ro.device)  # [k]
+    ticks = ticks.view(k, 1)  # [k, 1]
+    t_min = t_min.view(n, 1)  # [n, 1]
+    t_max = t_max.view(n, 1)  # [n, 1]
+
+    dists = t_min + ticks  # [k, n]
+
+    pts = ro.unsqueeze(0) + rd.unsqueeze(0) * dists.unsqueeze(-1)  # [k, n, 3]
+    pts_flat = pts.reshape(-1, 3)  # [k*n, 3]
+
+    # Use model.forward which applies positional encoding and MLP internally
+    density, color = model.forward(pts_flat)  # density: [k*n], color: [k*n, 3]
+
+    density = density.view(k, n)
+    color = color.view(k, n, 3)
+
+    weights = volume_rend_weights(density, step_size)
+    weights3 = weights.unsqueeze(-1)  # [k, n, 1]
+
+    rgbs = (weights3 * color).sum(dim=0)  # [n, 3]
+
+    bg_weight = 1.0 - weights.sum(dim=0)
+    bg_weight = bg_weight.unsqueeze(-1)  # [n, 1]
+
+    if getattr(model, 'blend_bg_texture', False):
+        uv = spherical_xyz_to_uv(rd)
+        bg_feats = model.compute_bg(uv)
+        bg_color = model.feats2color(bg_feats)
+        rgbs = rgbs + bg_weight * bg_color
+    else:
+        rgbs = rgbs + bg_weight * 1.0  # white background
+
+    E_dists = (weights * dists).sum(dim=0) + bg_weight.squeeze(-1) * 10.0
+
+    return rgbs, E_dists, weights
+
+
+def render_ray_bundle__old(model, ro, rd, t_min, t_max):
     num_samples, step_size = model.get_num_samples((t_max - t_min).max())
     n, k = len(ro), num_samples
 
