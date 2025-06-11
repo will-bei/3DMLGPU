@@ -97,6 +97,14 @@ class MLPScoreAdapter:
         # If your model supports prompt embeddings, implement this
         # Otherwise return empty dict or None
         return {}
+    
+    def get_num_samples(self, max_dist):
+        num_samples = 64
+        step_size = max_dist / num_samples
+        return num_samples, step_size
+    
+    def opt_params(self):
+        return self.mlp.parameters()
 
 TRAIN_WAIT_STEPS = 1
 TRAIN_WARMUP_STEPS = 2
