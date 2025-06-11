@@ -367,7 +367,7 @@ def render_one_view(vox, aabb, H, W, K, pose, model, return_w=False):
     rgbs, depth, weights = render_ray_bundle(model, ro, rd, t_min, t_max)
 
     rgbs = rearrange(rgbs, "(h w) c -> 1 c h w", h=H, w=W)
-    depth = rearrange(depth, "(h w) 1 -> h w", h=H, w=W)
+    depth = rearrange(depth.unsqueeze(-1), "(h w) 1 -> h w", h=H, w=W)
     if return_w:
         return rgbs, depth, weights
     else:
