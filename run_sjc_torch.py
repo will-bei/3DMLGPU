@@ -249,8 +249,6 @@ def sjc_3d(
                     chosen_σs = chosen_σs.reshape(-1, 1, 1, 1)
                     chosen_σs = torch.as_tensor(chosen_σs, device=model.device, dtype=torch.float32)
 
-                    # chosen_σs = us[i]
-
                     noise = torch.randn(bs, *y.shape[1:], device=model.device)
 
                     zs = y + chosen_σs * noise
@@ -262,11 +260,16 @@ def sjc_3d(
                     else:
                         Dsrgb = Ds
 
-                    # Resize Dsrgb to match y's spatial size
-                    print("Dsrgb shape before interp:", Dsrgb.shape)
-                    print("y shape:", y.shape)
+                    # If Dsrgb is flattened, reshape to [bs, C, H, W]
+                    if len(Dsrgb.shape) == 2:
+                        # Dsrgb shape: [bs*H*W, C], reshape accordingly
+                        C = y.shape[1]
+                        H = y.shape[2]
+                        W = y.shape[3]
+                        Dsrgb = Dsrgb.reshape(bs, H, W, C).permute(0, 3, 1, 2).contiguous()
 
-                    if len(Dsrgb.shape) == 4 and Dsrgb.shape[2:] != y.shape[2:]:
+                    # Now interpolate if needed
+                    if Dsrgb.shape[2:] != y.shape[2:]:
                         Dsrgb = torch.nn.functional.interpolate(Dsrgb, size=y.shape[2:], mode='bilinear', align_corners=False)
 
                     if var_red:
@@ -275,6 +278,7 @@ def sjc_3d(
                         grad = (Dsrgb - zs) / chosen_σs
 
                     grad = grad.mean(0, keepdim=True)
+
             
             with record_function("backward_pass"):
                 y.backward(-grad, retain_graph=True)
