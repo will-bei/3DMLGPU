@@ -64,22 +64,20 @@ class SimpleNeRFMLP(torch.nn.Module):
         rgb = torch.sigmoid(out[:, 1:4])
         return sigma, rgb
 
-
 class MLPScoreAdapter:
-    def __init__(self, mlp, pos_encoder=None):
+    def __init__(self, mlp, prompt, pos_encoder=None):
         self.mlp = mlp
         self.pos_encoder = pos_encoder
         self.device = next(mlp.parameters()).device
         self.us = torch.linspace(0.01, 1.0, steps=100).to(self.device)
+        self.prompt = prompt
 
     def samps_centered(self):
         # Return True or False depending on your model's sampling convention
-        # If you don't have any specific convention, return True as a safe default
         return True
 
     def data_shape(self):
         # Return the shape of the data your model expects, e.g. (channels, height, width)
-        # Replace with your actual shape
         return (4, 64, 64)  # Example shape
 
     def forward(self, pts):
@@ -89,14 +87,15 @@ class MLPScoreAdapter:
             pts_enc = pts
         sigma, rgb = self.mlp(pts_enc)
         return sigma, rgb
+
     def denoise(self, zs, sigma, **score_conds):
         # Implement denoising logic based on zs, sigma, and any conditioning
-        # If you have no denoise function, just forward through the network
-        return self.forward(zs)[1]  # returning rgb part as an example
+        # If no special denoising, just forward through the network
+        return self.forward(zs)[1]  # return rgb part as example
 
     def prompts_emb(self, prompts):
         # If your model supports prompt embeddings, implement this
-        # Otherwise, return an empty dict or None
+        # Otherwise return empty dict or None
         return {}
 
 TRAIN_WAIT_STEPS = 1
@@ -171,7 +170,8 @@ class SJC(BaseConf):
         device = device_glb
         pos_encoder = PositionalEncoding(num_freqs=10).to(device)
         mlp = SimpleNeRFMLP(input_dim=3 + 3 * 2 * 10).to(device)
-        model = MLPScoreAdapter(mlp, pos_encoder)
+        prompt = self.sd.prompt
+        model = MLPScoreAdapter(mlp, prompt, pos_encoder)
 
         cfgs.pop("vox")
         vox = self.vox.make()
