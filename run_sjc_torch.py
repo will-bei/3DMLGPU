@@ -263,7 +263,10 @@ def sjc_3d(
                         Dsrgb = Ds
 
                     # Resize Dsrgb to match y's spatial size
-                    if Dsrgb.shape[2:] != y.shape[2:]:
+                    print("Dsrgb shape before interp:", Dsrgb.shape)
+                    print("y shape:", y.shape)
+
+                    if len(Dsrgb.shape) == 4 and Dsrgb.shape[2:] != y.shape[2:]:
                         Dsrgb = torch.nn.functional.interpolate(Dsrgb, size=y.shape[2:], mode='bilinear', align_corners=False)
 
                     if var_red:
