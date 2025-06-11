@@ -235,9 +235,10 @@ def sjc_3d(
             with record_function("loss_calc"):
                 with torch.no_grad():
                     ts_np = ts.cpu().numpy() if isinstance(ts, torch.Tensor) else ts
-                    chosenσs = np.random.choice(ts_np, bs, replace=False)
-                    chosenσs = chosenσs.reshape(-1, 1, 1, 1)
+                    chosen_σs = np.random.choice(ts_np, bs, replace=False)
+                    chosen_σs = chosen_σs.reshape(-1, 1, 1, 1)
                     chosen_σs = torch.as_tensor(chosen_σs, device=model.device, dtype=torch.float32)
+
                     # chosen_σs = us[i]
 
                     noise = torch.randn(bs, *y.shape[1:], device=model.device)
