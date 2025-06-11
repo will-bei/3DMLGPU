@@ -240,10 +240,10 @@ def render_ray_bundle(model, ro, rd, t_min, t_max):
 
     ticks = step_size * torch.arange(k, device=ro.device)  # [k]
     ticks = ticks.view(k, 1)  # [k, 1]
-    t_min = t_min.view(n, 1)  # [n, 1]
-    t_max = t_max.view(n, 1)  # [n, 1]
+    t_min = t_min.view(1, n)  # [1, n]
+    t_max = t_max.view(n, 1)  # [n, 1] (you can keep this as is if not used in this addition)
 
-    dists = t_min + ticks  # [k, n]
+    dists = ticks + t_min  # [k, n]
 
     pts = ro.unsqueeze(0) + rd.unsqueeze(0) * dists.unsqueeze(-1)  # [k, n, 3]
     pts_flat = pts.reshape(-1, 3)  # [k*n, 3]
