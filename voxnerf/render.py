@@ -141,8 +141,123 @@ def scene_box_filter(ro, rd, aabb):
     intsct_inds = np.arange(N)[is_intsct]
     return ro, rd, t_min, t_max, intsct_inds
 
+#---------------------------------------------------------------------------------------------------------
+
+def get_gaussian_ray_samples(ro, rd, t_min, step_size, num_steps):
+    """
+    Returns Gaussian mean and covariance for each sample interval along the ray.
+    Assumes uniform sampling from t_min in `step_size` increments.
+    Args:
+        ro: (n, 3) ray origin
+        rd: (n, 3) normalized ray direction
+        t_min: (n,) ray entry distances
+        step_size: float, step length
+        num_steps: int, number of samples
+    Returns:
+        mean: (k, n, 3)
+        cov: (k, n, 3, 3)
+    """
+    n = ro.shape[0]
+    device = ro.device
+
+    t_vals = step_size * torch.arange(num_steps, device=device).view(num_steps, 1)  # (k, 1)
+    t0 = t_min.view(1, n) + t_vals            # (k, n)
+    t1 = t0 + step_size                       # (k, n)
+
+    # midpoint of the segment: (k, n, 1)
+    t_mid = (t0 + t1) / 2.0
+    mean = ro[None, :, :] + t_mid[..., None] * rd[None, :, :]  # (k, n, 3)
+
+    delta = (t1 - t0) / 2.0  # (k, n)
+    cov_scalar = delta**2 / 3  # for uniform distribution over segment
+
+    # Covariance along direction: rd * rd^T scaled
+    d_outer = rd[:, :, None] * rd[:, None, :]  # (n, 3, 3)
+    d_outer = d_outer[None, :, :, :]           # (1, n, 3, 3)
+    eye = torch.eye(3, device=device).view(1, 1, 3, 3)  # (1, 1, 3, 3)
+    cov = cov_scalar[..., None, None] * (eye - d_outer + d_outer * 3)  # (k, n, 3, 3)
+
+    return mean, cov
+
+
+def integrated_pos_enc(mean, cov, num_freqs=10):
+    """
+    Integrated positional encoding from Mip-NeRF.
+    Args:
+        mean: (k, n, 3)
+        cov: (k, n, 3, 3)
+        num_freqs: number of frequency bands
+    Returns:
+        encoded: (k * n, 3 * num_freqs * 2)
+    """
+    k, n, _ = mean.shape
+    device = mean.device
+
+    freq_bands = 2 ** torch.arange(num_freqs, device=device).float() * np.pi  # (num_freqs,)
+    shape = (1, 1, 1, num_freqs)  # for broadcasting
+
+    mean = mean.view(k, n, 3, 1)  # (k, n, 3, 1)
+    cov_diag = torch.diagonal(cov, dim1=-2, dim2=-1)  # (k, n, 3)
+
+    freq = freq_bands.view(1, 1, 1, num_freqs)  # (1, 1, 1, num_freqs)
+    scaled_mean = freq * mean  # (k, n, 3, num_freqs)
+    scaled_var = (freq ** 2) * cov_diag.view(k, n, 3, 1)  # (k, n, 3, num_freqs)
+
+    # Apply expected value of sin/cos of a Gaussian (Mip-NeRF Eq 7 & 8)
+    encoded = torch.cat([
+        torch.exp(-0.5 * scaled_var) * torch.sin(scaled_mean),  # (k, n, 3, num_freqs)
+        torch.exp(-0.5 * scaled_var) * torch.cos(scaled_mean),
+    ], dim=-1)  # (k, n, 3, 2 * num_freqs)
+
+    encoded = encoded.view(k * n, -1)  # flatten (k * n, 3 * 2 * num_freqs)
+    return encoded
 
 def render_ray_bundle(model, ro, rd, t_min, t_max):
+    num_samples, step_size = model.get_num_samples((t_max - t_min).max())
+    n, k = len(ro), num_samples
+
+    # Mip-NeRF style Gaussian ray sample intervals
+    mean, cov = get_gaussian_ray_samples(ro, rd, t_min, step_size, k)  # [k, n, 3], [k, n, 3, 3]
+    encoded = integrated_pos_enc(mean, cov)  # [k * n, feat_dim]
+
+    # Compute densities and reshape
+    σ = model.compute_density_feats(encoded)  # [k * n]
+    σ = σ.view(k, n)
+
+    weights = volume_rend_weights(σ, step_size)  # [k, n]
+    mask = weights > model.ray_march_weight_thres
+
+    # Compute appearance features and colors
+    app_feats = model.compute_app_feats(encoded[mask])  # now from encoded
+    c_dim = app_feats.shape[-1]
+    colors = torch.zeros(k, n, c_dim, device=ro.device)
+    colors[mask] = model.feats2color(app_feats)
+
+    weights = weights.view(k, n, 1)
+    bg_weight = 1. - weights.sum(dim=0)  # [n, 1]
+    rgbs = (weights * colors).sum(dim=0)  # [n, 3]
+
+    if model.blend_bg_texture:
+        uv = spherical_xyz_to_uv(rd)
+        bg_feats = model.compute_bg(uv)
+        bg_color = model.feats2color(bg_feats)
+        rgbs += bg_weight * bg_color
+    else:
+        rgbs += bg_weight * 1.0  # white bg
+
+    # Expected depth
+    ticks = step_size * torch.arange(k, device=ro.device).view(k, 1)
+    dists = t_min.view(n, 1) + ticks.T  # [k, n]
+    E_dists = (weights.squeeze(-1) * dists).sum(dim=0)
+    E_dists += bg_weight.squeeze(-1) * 10.  # constant bg depth
+
+    return rgbs, E_dists, weights.squeeze(-1)
+
+
+
+#---------------------------------------------------------------------------------------------------------
+
+def render_ray_bundle_old(model, ro, rd, t_min, t_max):
     """
     The working shape is (k, n, 3) where k is num of samples per ray, n the ray batch size
     During integration the reduction is applied on k
