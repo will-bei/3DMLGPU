@@ -91,11 +91,11 @@ class MLPScoreAdapter:
             if pts_enc.dim() > 2:
                 pts_enc = pts_enc.view(-1, pts_enc.shape[-1])
 
-    print("[DEBUG] pts_enc shape:", pts_enc.shape)
-    print("[DEBUG] MLP input weight shape:", self.mlp.layers[0].weight.shape)
+        print("[DEBUG] pts_enc shape:", pts_enc.shape)
+        print("[DEBUG] MLP input weight shape:", self.mlp.layers[0].weight.shape)
 
-    sigma, rgb = self.mlp(pts_enc)
-    return sigma, rgb
+        sigma, rgb = self.mlp(pts_enc)
+        return sigma, rgb
 
     def denoise(self, zs, sigma, **score_conds):
         # Implement denoising logic based on zs, sigma, and any conditioning
