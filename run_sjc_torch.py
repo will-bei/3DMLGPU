@@ -256,10 +256,17 @@ def sjc_3d(
                     zs = y + chosen_σs * noise
                     Ds = model.denoise(zs, chosen_σs, **score_conds)
 
-                    if var_red:
-                        grad = (Ds - y) / chosen_σs
+                    # Keep only the RGB channels if Ds has more (e.g., Ds.shape[-3] > 3)
+                    if Ds.shape[1] > 3 and y.shape[1] == 3:
+                        Ds_rgb = Ds[:, :3, :, :]
                     else:
-                        grad = (Ds - zs) / chosen_σs
+                        Ds_rgb = Ds
+
+                    # Then compute grad
+                    if var_red:
+                        grad = (Ds_rgb - y) / chosen_σs
+                    else:
+                        grad = (Ds_rgb - zs) / chosen_σs
 
                     grad = grad.mean(0, keepdim=True)
             
