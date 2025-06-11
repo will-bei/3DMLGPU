@@ -85,6 +85,9 @@ class MLPScoreAdapter:
             pts_enc = self.pos_encoder(pts)
         else:
             pts_enc = pts
+
+        if pts_enc.dim() > 2:
+            pts_enc = pts_enc.view(-1, pts_enc.shape[-1])
         print(f"[DEBUG] pts_enc shape: {pts_enc.shape}")   # <-- put this here
         sigma, rgb = self.mlp(pts_enc)
         return sigma, rgb
