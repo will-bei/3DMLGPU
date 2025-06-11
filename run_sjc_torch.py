@@ -71,6 +71,16 @@ class MLPScoreAdapter:
         self.pos_encoder = pos_encoder
         self.device = next(mlp.parameters()).device
 
+    def samps_centered(self):
+        # Return True or False depending on your model's sampling convention
+        # If you don't have any specific convention, return True as a safe default
+        return True
+
+    def data_shape(self):
+        # Return the shape of the data your model expects, e.g. (channels, height, width)
+        # Replace with your actual shape
+        return (4, 64, 64)  # Example shape
+
     def forward(self, pts):
         if self.pos_encoder is not None:
             pts_enc = self.pos_encoder(pts)
@@ -78,7 +88,15 @@ class MLPScoreAdapter:
             pts_enc = pts
         sigma, rgb = self.mlp(pts_enc)
         return sigma, rgb
+    def denoise(self, zs, sigma, **score_conds):
+        # Implement denoising logic based on zs, sigma, and any conditioning
+        # If you have no denoise function, just forward through the network
+        return self.forward(zs)[1]  # returning rgb part as an example
 
+    def prompts_emb(self, prompts):
+        # If your model supports prompt embeddings, implement this
+        # Otherwise, return an empty dict or None
+        return {}
 
 TRAIN_WAIT_STEPS = 1
 TRAIN_WARMUP_STEPS = 2
