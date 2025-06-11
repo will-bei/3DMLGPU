@@ -252,17 +252,6 @@ class MLPScoreAdapter(ScoreAdapter):
     def __init__(self, mlp):
         self.mlp = mlp
         self.device = next(mlp.parameters()).device
-
-    def compute_density_feats(self, pts):
-        # no longer needed, handled inside render_ray_bundle
-
-    def compute_app_feats(self, pts):
-        # no longer needed
-
-    def feats2color(self, feats):
-        # no longer needed
-
-    def forward(self, pts):
         return self.mlp(pts)
 
 def test():
