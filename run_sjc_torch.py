@@ -85,6 +85,7 @@ class MLPScoreAdapter:
             pts_enc = self.pos_encoder(pts)
         else:
             pts_enc = pts
+        print(f"[DEBUG] pts_enc shape: {pts_enc.shape}")   # <-- put this here
         sigma, rgb = self.mlp(pts_enc)
         return sigma, rgb
 
@@ -178,6 +179,7 @@ class SJC(BaseConf):
         device = device_glb
         pos_encoder = PositionalEncoding(num_freqs=10).to(device)
         mlp = SimpleNeRFMLP(input_dim=3 + 3 * 2 * 10).to(device)
+        print(f"[DEBUG] MLP input layer weight shape: {mlp.layers[0].weight.shape}")
         prompt = self.sd.prompt
         model = MLPScoreAdapter(mlp, prompt, pos_encoder)
 
