@@ -256,17 +256,20 @@ def sjc_3d(
                     zs = y + chosen_σs * noise
                     Ds = model.denoise(zs, chosen_σs, **score_conds)
 
-                    # Keep only the RGB channels if Ds has more (e.g., Ds.shape[-3] > 3)
+                    # Extract RGB part if needed
                     if Ds.shape[1] > 3 and y.shape[1] == 3:
-                        Ds_rgb = Ds[:, :3, :, :]
+                        Dsrgb = Ds[:, :3, :, :]
                     else:
-                        Ds_rgb = Ds
+                        Dsrgb = Ds
 
-                    # Then compute grad
+                    # Resize Dsrgb to match y's spatial size
+                    if Dsrgb.shape[2:] != y.shape[2:]:
+                        Dsrgb = torch.nn.functional.interpolate(Dsrgb, size=y.shape[2:], mode='bilinear', align_corners=False)
+
                     if var_red:
-                        grad = (Ds_rgb - y) / chosen_σs
+                        grad = (Dsrgb - y) / chosen_σs
                     else:
-                        grad = (Ds_rgb - zs) / chosen_σs
+                        grad = (Dsrgb - zs) / chosen_σs
 
                     grad = grad.mean(0, keepdim=True)
             
