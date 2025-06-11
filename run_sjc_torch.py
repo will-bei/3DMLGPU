@@ -369,7 +369,7 @@ def evaluate(score_model, vox, poser):
             break
 
         pose = poses[i]
-        y, depth = render_one_view(vox, aabb, H, W, K, pose, model)
+        y, depth = render_one_view(vox, aabb, H, W, K, pose, score_model) 
         if isinstance(score_model, StableDiffusion):
             y = score_model.decode(y)
         vis_routine(metric, y, depth)
@@ -385,6 +385,7 @@ def evaluate(score_model, vox, poser):
     )
 
     metric.step()
+
 
 
 def render_one_view(vox, aabb, H, W, K, pose, model, return_w=False):
