@@ -70,6 +70,7 @@ class MLPScoreAdapter:
         self.mlp = mlp
         self.pos_encoder = pos_encoder
         self.device = next(mlp.parameters()).device
+        self.us = torch.linspace(0.01, 1.0, steps=100).to(self.device)
 
     def samps_centered(self):
         # Return True or False depending on your model's sampling convention
