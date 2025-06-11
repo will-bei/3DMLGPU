@@ -82,15 +82,20 @@ class MLPScoreAdapter:
 
     def forward(self, pts):
         if self.pos_encoder is not None:
+            # assume pts is (B, 3, H, W) or (N, 3)
+            if pts.dim() == 4:
+                pts = pts.permute(0, 2, 3, 1).reshape(-1, 3)  # flatten spatial dims
             pts_enc = self.pos_encoder(pts)
         else:
             pts_enc = pts
+            if pts_enc.dim() > 2:
+                pts_enc = pts_enc.view(-1, pts_enc.shape[-1])
 
-        if pts_enc.dim() > 2:
-            pts_enc = pts_enc.view(-1, pts_enc.shape[-1])
-        print(f"[DEBUG] pts_enc shape: {pts_enc.shape}")   # <-- put this here
-        sigma, rgb = self.mlp(pts_enc)
-        return sigma, rgb
+    print("[DEBUG] pts_enc shape:", pts_enc.shape)
+    print("[DEBUG] MLP input weight shape:", self.mlp.layers[0].weight.shape)
+
+    sigma, rgb = self.mlp(pts_enc)
+    return sigma, rgb
 
     def denoise(self, zs, sigma, **score_conds):
         # Implement denoising logic based on zs, sigma, and any conditioning
