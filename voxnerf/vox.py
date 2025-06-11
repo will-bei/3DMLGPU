@@ -248,12 +248,6 @@ class AlphaMask(nn.Module):
         amask = cls(aabb, alphas.float())
         return amask
 
-class MLPScoreAdapter(ScoreAdapter):
-    def __init__(self, mlp):
-        self.mlp = mlp
-        self.device = next(mlp.parameters()).device
-        return self.mlp(pts)
-
 def test():
     device = torch.device("cuda:1")
 
