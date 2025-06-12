@@ -217,9 +217,9 @@ class StableDiffusion(ScoreAdapter):
 
     @torch.no_grad()
     def encode(self, xs):
-        model = self.model.module 
+        model = self.model.module if hasattr(self.model, "module") else self.model
         with self.precision_scope("cuda"):
-            with self.model.module.ema_scope():
+            with model.ema_scope():
                 zs = model.get_first_stage_encoding(
                     model.encode_first_stage(xs)
                 )
@@ -229,7 +229,7 @@ class StableDiffusion(ScoreAdapter):
     def decode(self, xs):
         with self.precision_scope("cuda"):
             with self.model.module.ema_scope():
-                xs = self.model.decode_first_stage(xs)
+                xs = self.model.module.decode_first_stage(xs)
                 return xs
     
 
