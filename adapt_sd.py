@@ -96,7 +96,8 @@ class StableDiffusion(ScoreAdapter):
 
         ae_resolution_f = 8
 
-        self._device = self.model._device
+        #self._device = self.model._device
+        self._device = getattr(self.model, "_device", torch.device("cpu"))
 
         self.prompt = prompt
         self.scale = scale

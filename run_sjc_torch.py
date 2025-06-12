@@ -368,7 +368,7 @@ def ddp_main(rank, world_size, config_dict):
     config.vox.device = device
     config.sd.device = device  
     
-    model = getattr(config, config.family).make()
+    model = getattr(config, config.family).make().to(device)
     vox = config.vox.make()
     poser = config.pose.make()
     
