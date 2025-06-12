@@ -118,6 +118,7 @@ def render_one_view(model, aabb, H, W, K, pose):
 
     ro, rd = rays_from_img(H, W, K, pose)
     ro, rd, t_min, t_max, intsct_inds = scene_box_filter(ro, rd, aabb)
+    print("Num rays intersecting AABB:", len(ro))
     n = len(ro)
     # print(f"{n} vs {N}")  # n can be smaller than N since some rays do not intsct aabb
 
@@ -236,6 +237,7 @@ def render_ray_bundle(model, ro, rd, t_min, t_max):
       - blend_bg_texture, compute_bg(), feats2color() (optional)
       - get_num_samples()
     """
+    print("[DEBUG] >>> ENTERED render_ray_bundle <<<")
     num_samples, step_size = model.get_num_samples((t_max - t_min).max())
     print("Samples per ray:", num_samples, "Step size:", step_size)
     n, k = len(ro), num_samples
