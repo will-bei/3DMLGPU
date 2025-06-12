@@ -305,11 +305,12 @@ def sjc_3d(
 
             metric.put_scalars(**tsr_stats(y))
 
-            if every(pbar, percent=1):
-                with torch.no_grad():
-                    if isinstance(model, StableDiffusion):
-                        y = model.decode(y)
-                    vis_routine(metric, y, depth)
+            with record_function("image_render"):
+                if every(pbar, percent=1):
+                    with torch.no_grad():
+                        if isinstance(model, StableDiffusion):
+                            y = model.decode(y)
+                        vis_routine(metric, y, depth)
 
             # if every(pbar, step=2500):
             #     metric.put_artifact(
