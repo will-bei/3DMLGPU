@@ -42,18 +42,18 @@ wait=TRAIN_WAIT_STEPS,
 warmup=TRAIN_WARMUP_STEPS,
 active=TRAIN_ACTIVE_STEPS,
 repeat=TRAIN_REPEAT_STEPS)    
-prof =  torch.profiler.profile(
+prof = torch.profiler.profile(
     schedule=train_prof_schedule,
     activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
     on_trace_ready=lambda prof: (
-        logdir = os.getcwd() 
-        print(f"Saving trace to {os.path.join(logdir, 'trace.json')}"),
-        prof.export_chrome_trace(os.path.join(logdir, 'trace.json'))
+        print(f"Saving trace to {os.path.join(os.getcwd(), 'trace.json')}"),
+        prof.export_chrome_trace(os.path.join(os.getcwd(), 'trace.json'))
     ),
     record_shapes=True,
     profile_memory=True,
     with_stack=True
 )
+
 
 def tsr_stats(tsr):
     return {
@@ -198,11 +198,12 @@ def sjc_3d(
 
             metric.put_scalars(**tsr_stats(y))
 
-            if every(pbar, percent=1):
-                with torch.no_grad():
-                    if isinstance(model, StableDiffusion):
-                        y = model.decode(y)
-                    vis_routine(metric, y, depth)
+            with record_function("image_render"):
+                if every(pbar, percent=1):
+                    with torch.no_grad():
+                        if isinstance(model, StableDiffusion):
+                            y = model.decode(y)
+                        vis_routine(metric, y, depth)
 
             # if every(pbar, step=2500):
             #     metric.put_artifact(
