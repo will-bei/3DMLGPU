@@ -164,7 +164,7 @@ class StableDiffusion(ScoreAdapter):
         assert isinstance(prompts, list)
         batch_size = len(prompts)
         with self.precision_scope("cuda"):
-            with self.model.ema_scope():
+            with self.model.module.ema_scope():
                 cond = {}
                 c = self.cond_func(prompts)
                 cond['c'] = c
@@ -219,7 +219,7 @@ class StableDiffusion(ScoreAdapter):
     def encode(self, xs):
         model = self.model
         with self.precision_scope("cuda"):
-            with self.model.ema_scope():
+            with self.model.module.ema_scope():
                 zs = model.get_first_stage_encoding(
                     model.encode_first_stage(xs)
                 )
@@ -228,7 +228,7 @@ class StableDiffusion(ScoreAdapter):
     @torch.no_grad()
     def decode(self, xs):
         with self.precision_scope("cuda"):
-            with self.model.ema_scope():
+            with self.model.module.ema_scope():
                 xs = self.model.decode_first_stage(xs)
                 return xs
     
