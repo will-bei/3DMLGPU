@@ -365,13 +365,15 @@ def ddp_main(rank, world_size, config_dict):
     config = SJC(**config_dict)
 
     device = torch.device(f"cuda:{rank}")
-    config.vox.device = device
-    config.sd.device = device  
-    
-    model = getattr(config, config.family).make().to(device)
+    model = getattr(config, config.family).make()
+    model = model.to(device)
+
     vox = config.vox.make()
+    vox = vox.to(device)  # if vox has .to()
+
     poser = config.pose.make()
-    
+    poser = poser.to(device)  # if poser has .to()
+        
 
     sjc_3d(
         poser=poser,

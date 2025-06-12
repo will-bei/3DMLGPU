@@ -57,6 +57,11 @@ class VoxRF(nn.Module):
 
         self.d_scale = torch.nn.Parameter(torch.tensor(0.0))
 
+    def to(self, device):
+        super().to(device)
+        # any custom tensors you want to move to device here
+        return self
+        
     @property
     def device(self):
         return self.density.device
