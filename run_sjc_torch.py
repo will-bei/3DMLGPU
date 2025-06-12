@@ -46,8 +46,9 @@ wait=TRAIN_WAIT_STEPS,
 warmup=TRAIN_WARMUP_STEPS,
 active=TRAIN_ACTIVE_STEPS,
 repeat=TRAIN_REPEAT_STEPS)    
-rank = dist.get_rank() if dist.is_initialized() else 0
 
+"""
+rank = dist.get_rank() if dist.is_initialized() else 0
 prof = torch.profiler.profile(
     schedule=train_prof_schedule,
     activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
@@ -59,6 +60,7 @@ prof = torch.profiler.profile(
     profile_memory=True,
     with_stack=True
 )
+"""
 
 def setup_ddp(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'  # For single-machine setup
@@ -128,7 +130,7 @@ class SJC(BaseConf):
 def sjc_3d(
     poser, vox, model: ScoreAdapter,
     lr, n_steps, emptiness_scale, emptiness_weight, emptiness_step, emptiness_multiplier,
-    depth_weight, var_red, **kwargs
+    depth_weight, var_red, rank, **kwargs
 ):
     del kwargs
 
@@ -153,6 +155,20 @@ def sjc_3d(
     fuse = EarlyLoopBreak(5)
 
     same_noise = torch.randn(1, 4, H, W, device=model.device).repeat(bs, 1, 1, 1)
+
+    trace_path = os.path.join(os.getcwd(), f"trace_{rank}.json")
+
+    prof = torch.profiler.profile(
+        schedule=train_prof_schedule,
+        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+        on_trace_ready=lambda prof: (
+            print(f"[RANK {rank}] Saving trace to {trace_path}"),
+            prof.export_chrome_trace(trace_path)
+        ),
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=True
+    )
 
     prof.start() 
     with tqdm(total=n_steps) as pbar, \
@@ -389,6 +405,7 @@ def ddp_main(rank, world_size, config_dict):
         emptiness_multiplier=config.emptiness_multiplier,
         depth_weight=config.depth_weight,
         var_red=config.var_red,
+        rank=rank,
     )
 
     cleanup_ddp()
