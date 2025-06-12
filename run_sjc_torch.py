@@ -46,12 +46,14 @@ wait=TRAIN_WAIT_STEPS,
 warmup=TRAIN_WARMUP_STEPS,
 active=TRAIN_ACTIVE_STEPS,
 repeat=TRAIN_REPEAT_STEPS)    
+rank = dist.get_rank() if dist.is_initialized() else 0
+
 prof = torch.profiler.profile(
     schedule=train_prof_schedule,
     activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
     on_trace_ready=lambda prof: (
-        print(f"Saving trace to {os.path.join(os.getcwd(), f'trace_{torch.distributed.get_rank()}.json')}"),
-        prof.export_chrome_trace(os.path.join(os.getcwd(), f'trace_{torch.distributed.get_rank()}.json'))
+        print(f"Saving trace to trace_{rank}.json"),
+        prof.export_chrome_trace(f"trace_{rank}.json")
     ),
     record_shapes=True,
     profile_memory=True,
