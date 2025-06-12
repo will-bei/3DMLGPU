@@ -57,7 +57,7 @@ class SimpleNeRFMLP(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, 4)  # sigma + rgb (r,g,b)
         )
-        self.layers[-1].bias[0] = 1.0
+        #self.layers[-1].bias[0] = 1.0
 
     def forward(self, x):
         out = self.layers(x)
