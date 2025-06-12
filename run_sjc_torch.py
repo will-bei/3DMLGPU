@@ -133,6 +133,8 @@ def sjc_3d(
     assert model.samps_centered()
 
     model = model.to(vox.device)  # Already determined from device_glb or rank
+    rank = vox.device.index
+    
     if dist.is_initialized():     # Only wrap if in DDP mode
         model.model = DDP(model.model, device_ids=[vox.device.index])
 
@@ -361,9 +363,15 @@ def ddp_main(rank, world_size, config_dict):
     setup_ddp(rank, world_size)
 
     config = SJC(**config_dict)
+
+    device = torch.device(f"cuda:{rank}")
+    config.vox.device = device  # 👈 ensure this is set correctly
+    config.sd.device = device  
+    
     model = getattr(config, config.family).make()
     vox = config.vox.make()
     poser = config.pose.make()
+    
 
     sjc_3d(
         poser=poser,
