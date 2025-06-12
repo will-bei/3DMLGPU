@@ -139,7 +139,7 @@ class StableDiffusion(ScoreAdapter):
                 unscaled_xs = xs
                 xs = xs / _sqrt(1 + σ**2)
                 if uc is None or self.scale == 1.:
-                    output = self.model.apply_model(xs, cond_t, c)
+                    output = self.model.module.apply_model(xs, cond_t, c)
                 else:
                     x_in = torch.cat([xs] * 2)
                     t_in = torch.cat([cond_t] * 2)
@@ -147,8 +147,8 @@ class StableDiffusion(ScoreAdapter):
                     e_t_uncond, e_t = self.model.module.apply_model(x_in, t_in, c_in).chunk(2)
                     output = e_t_uncond + self.scale * (e_t - e_t_uncond)
 
-                if self.model.parameterization == "v":
-                    output = self.model.predict_eps_from_z_and_v(xs, cond_t, output)
+                if self.model.module.parameterization == "v":
+                    output = self.model.module.predict_eps_from_z_and_v(xs, cond_t, output)
                 else:
                     output = output
 
@@ -166,11 +166,11 @@ class StableDiffusion(ScoreAdapter):
         with self.precision_scope("cuda"):
             with self.model.module.ema_scope():
                 cond = {}
-                c = self.cond_func(prompts)
+                c = self.model.module.get_learned_conditioning(prompts)
                 cond['c'] = c
                 uc = None
                 if self.scale != 1.0:
-                    uc = self.cond_func(batch_size * [""])
+                    uc = self.model.module.get_learned_conditioning(batch_size * [""])
                 cond['uc'] = uc
                 return cond
 
@@ -217,7 +217,7 @@ class StableDiffusion(ScoreAdapter):
 
     @torch.no_grad()
     def encode(self, xs):
-        model = self.model
+        model = self.model.module 
         with self.precision_scope("cuda"):
             with self.model.module.ema_scope():
                 zs = model.get_first_stage_encoding(
