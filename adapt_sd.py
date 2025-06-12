@@ -224,6 +224,17 @@ class StableDiffusion(ScoreAdapter):
             with self.model.ema_scope():
                 xs = self.model.decode_first_stage(xs)
                 return xs
+    
+    
+    def to(self, device):
+        # Update internal state
+        self._device = device
+
+        # Move the inner model to the target device
+        if hasattr(self.model, 'to'):
+            self.model = self.model.to(device)
+
+        return self
 
 
 def test():
