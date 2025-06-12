@@ -61,7 +61,7 @@ class SimpleNeRFMLP(torch.nn.Module):
 
     def forward(self, x):
         out = self.layers(x)
-        sigma = torch.relu(out[:, 0]) * 10.0 
+        sigma = torch.relu(out[:, 0]) * 100.0 
         sigma = torch.clamp(sigma, min=0.1) 
         rgb = torch.sigmoid(out[:, 1:4])
         return sigma, rgb
