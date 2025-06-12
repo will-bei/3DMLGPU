@@ -131,7 +131,7 @@ class StableDiffusion(ScoreAdapter):
     @torch.no_grad()
     def denoise(self, xs, σ, **model_kwargs):
         with self.precision_scope("cuda"):
-            with self.model.ema_scope():
+            with self.model.module.ema_scope():
                 N = xs.shape[0]
                 c = model_kwargs.pop('c')
                 uc = model_kwargs.pop('uc')
