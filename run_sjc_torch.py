@@ -386,14 +386,12 @@ if __name__ == "__main__":
     seed_everything(0)
     cfg = SJC()
     world_size = torch.cuda.device_count()
+    print(f"[DEBUG] Detected {world_size} available GPU(s)")
 
-    if world_size > 1:
-        mp.spawn(
-            ddp_main,
-            args=(world_size, cfg.dict()),
-            nprocs=world_size,
-            join=True
-        )
-    else:
-        dispatch(SJC)  # Single GPU fallback
+    mp.spawn(
+        ddp_main,
+        args=(world_size, cfg.dict()),
+        nprocs=world_size,
+        join=True
+    )
     # evaluate_ckpt()
