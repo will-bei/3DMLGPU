@@ -365,7 +365,7 @@ def ddp_main(rank, world_size, config_dict):
     config = SJC(**config_dict)
 
     device = torch.device(f"cuda:{rank}")
-    config.vox.device = device  # 👈 ensure this is set correctly
+    config.vox.device = device
     config.sd.device = device  
     
     model = getattr(config, config.family).make()

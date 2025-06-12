@@ -110,6 +110,12 @@ class StableDiffusion(ScoreAdapter):
         self.noise_schedule = noise_schedule
         self.us = self.linear_us(self.M)
 
+    def to(self, device):
+        self._device = device
+        if hasattr(self.model, "to"):
+            self.model = self.model.to(device)
+        return self
+
     def data_shape(self):
         return self._data_shape
 
@@ -225,12 +231,7 @@ class StableDiffusion(ScoreAdapter):
                 xs = self.model.decode_first_stage(xs)
                 return xs
     
-    
-    def to(self, device):
-        self._device = device
-        if hasattr(self.model, "to"):
-            self.model = self.model.to(device)
-        return self
+
 
 
 def test():
