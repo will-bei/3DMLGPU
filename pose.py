@@ -98,6 +98,15 @@ class Poser():
         self.R = R
         self.K = get_K(H, W, FoV)
 
+     def to(self, device):
+        # Move all tensors to device manually:
+        for attr_name, attr_value in self.__dict__.items():
+            if isinstance(attr_value, torch.Tensor):
+                setattr(self, attr_name, attr_value.to(device))
+            elif isinstance(attr_value, torch.nn.Module):
+                attr_value.to(device)
+        return self
+
     def sample_train(self, n):
         eyes, prompts = train_eye_with_prompts(r=self.R, n=n)
         up = np.array([0, 1, 0])
