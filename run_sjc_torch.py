@@ -134,7 +134,7 @@ def sjc_3d(
 
     model = model.to(vox.device)  # Already determined from device_glb or rank
     if dist.is_initialized():     # Only wrap if in DDP mode
-        model = DDP(model, device_ids=[vox.device.index])
+        model.model = DDP(model.model, device_ids=[vox.device.index])
 
     _, target_H, target_W = model.data_shape()
     bs = 1
