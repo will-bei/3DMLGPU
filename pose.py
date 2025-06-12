@@ -98,7 +98,7 @@ class Poser():
         self.R = R
         self.K = get_K(H, W, FoV)
 
-     def to(self, device):
+    def to(self, device):
         # Move all tensors to device manually:
         for attr_name, attr_value in self.__dict__.items():
             if isinstance(attr_value, torch.Tensor):
