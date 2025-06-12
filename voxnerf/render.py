@@ -143,6 +143,7 @@ def render_one_view(model, aabb, H, W, K, pose):
     base_color = 1.0  # empty region needs to be white
     rgbs = mask_back_fill(rgbs, N, intsct_inds, base_color).reshape(H, W, 3)
     depth = mask_back_fill(depth, N, intsct_inds, base_color).reshape(H, W)
+    print(f"Total rays: {N}, intersecting: {len(intsct_inds)}")
     return rgbs, depth
 
 
@@ -236,6 +237,7 @@ def render_ray_bundle(model, ro, rd, t_min, t_max):
       - get_num_samples()
     """
     num_samples, step_size = model.get_num_samples((t_max - t_min).max())
+    print("Samples per ray:", num_samples, "Step size:", step_size)
     n, k = len(ro), num_samples
 
     ticks = step_size * torch.arange(k, device=ro.device)  # [k]
@@ -250,7 +252,7 @@ def render_ray_bundle(model, ro, rd, t_min, t_max):
 
     # Use model.forward which applies positional encoding and MLP internally
     density, color = model.forward(pts_flat)  # density: [k*n], color: [k*n, 3]
-
+    print("Density max:", density.max().item(), "min:", density.min().item())
     density = density.view(k, n)
     color = color.view(k, n, 3)
 
@@ -258,7 +260,7 @@ def render_ray_bundle(model, ro, rd, t_min, t_max):
     weights3 = weights.unsqueeze(-1)  # [k, n, 1]
 
     rgbs = (weights3 * color).sum(dim=0)  # [n, 3]
-
+    print("Mean weight sum:", weights.sum(dim=0).mean().item())
     bg_weight = 1.0 - weights.sum(dim=0)
     bg_weight = bg_weight.unsqueeze(-1)  # [n, 1]
 
@@ -268,7 +270,7 @@ def render_ray_bundle(model, ro, rd, t_min, t_max):
         bg_color = model.feats2color(bg_feats)
         rgbs = rgbs + bg_weight * bg_color
     else:
-        rgbs = rgbs + bg_weight * 1.0  # white background
+        rgbs = rgbs + bg_weight * torch.tensor([1.0, 0.0, 1.0], device=ro.device)
 
     E_dists = (weights * dists).sum(dim=0) + bg_weight.squeeze(-1) * 10.0
 
