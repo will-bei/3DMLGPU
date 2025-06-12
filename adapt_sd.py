@@ -144,7 +144,7 @@ class StableDiffusion(ScoreAdapter):
                     x_in = torch.cat([xs] * 2)
                     t_in = torch.cat([cond_t] * 2)
                     c_in = torch.cat([uc, c])
-                    e_t_uncond, e_t = self.model.apply_model(x_in, t_in, c_in).chunk(2)
+                    e_t_uncond, e_t = self.model.module.apply_model(x_in, t_in, c_in).chunk(2)
                     output = e_t_uncond + self.scale * (e_t - e_t_uncond)
 
                 if self.model.parameterization == "v":
