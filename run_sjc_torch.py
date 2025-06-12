@@ -33,6 +33,10 @@ device_glb = torch.device("cuda")
 import json
 from torch.profiler import profile, ProfilerActivity
 
+import torch.distributed as dist
+import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
+
 TRAIN_WAIT_STEPS = 1
 TRAIN_WARMUP_STEPS = 2
 TRAIN_ACTIVE_STEPS = 5
@@ -54,6 +58,14 @@ prof = torch.profiler.profile(
     with_stack=True
 )
 
+def setup_ddp(rank, world_size):
+    os.environ['MASTER_ADDR'] = 'localhost'  # For single-machine setup
+    os.environ['MASTER_PORT'] = '12355'      # Pick any free port
+    dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
+    torch.cuda.set_device(rank)
+
+def cleanup_ddp():
+    dist.destroy_process_group()
 
 def tsr_stats(tsr):
     return {
@@ -119,6 +131,11 @@ def sjc_3d(
     del kwargs
 
     assert model.samps_centered()
+
+    model = model.to(vox.device)  # Already determined from device_glb or rank
+    if dist.is_initialized():     # Only wrap if in DDP mode
+        model = DDP(model, device_ids=[vox.device.index])
+
     _, target_H, target_W = model.data_shape()
     bs = 1
     aabb = vox.aabb.T.cpu().numpy()
@@ -340,8 +357,43 @@ def latest_ckpt():
     assert len(ys) > 0
     return ys[-1]
 
+def ddp_main(rank, world_size, config_dict):
+    setup_ddp(rank, world_size)
+
+    config = SJC(**config_dict)
+    model = getattr(config, config.family).make()
+    vox = config.vox.make()
+    poser = config.pose.make()
+
+    sjc_3d(
+        poser=poser,
+        vox=vox,
+        model=model,
+        lr=config.lr,
+        n_steps=config.n_steps,
+        emptiness_scale=config.emptiness_scale,
+        emptiness_weight=config.emptiness_weight,
+        emptiness_step=config.emptiness_step,
+        emptiness_multiplier=config.emptiness_multiplier,
+        depth_weight=config.depth_weight,
+        var_red=config.var_red,
+    )
+
+    cleanup_ddp()
+
 
 if __name__ == "__main__":
     seed_everything(0)
-    dispatch(SJC)
+    cfg = SJC()
+    world_size = torch.cuda.device_count()
+
+    if world_size > 1:
+        mp.spawn(
+            ddp_main,
+            args=(world_size, cfg.dict()),
+            nprocs=world_size,
+            join=True
+        )
+    else:
+        dispatch(SJC)  # Single GPU fallback
     # evaluate_ckpt()
