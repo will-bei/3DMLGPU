@@ -4,7 +4,7 @@ from math import pi as π
 from my3d import camera_pose
 from my.config import BaseConf
 import random
-
+import torch
 
 def get_K(H, W, FoV_x):
     FoV_x = FoV_x / 180 * π  # to rad
