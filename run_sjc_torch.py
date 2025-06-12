@@ -50,8 +50,8 @@ prof = torch.profiler.profile(
     schedule=train_prof_schedule,
     activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
     on_trace_ready=lambda prof: (
-        print(f"Saving trace to {os.path.join(os.getcwd(), 'trace.json')}"),
-        prof.export_chrome_trace(os.path.join(os.getcwd(), 'trace.json'))
+        print(f"Saving trace to {os.path.join(os.getcwd(), f'trace_{torch.distributed.get_rank()}.json')}"),
+        prof.export_chrome_trace(os.path.join(os.getcwd(), f'trace_{torch.distributed.get_rank()}.json'))
     ),
     record_shapes=True,
     profile_memory=True,
