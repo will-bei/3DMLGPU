@@ -79,7 +79,7 @@ def ray_box_intersect(ro, rd, aabb):
     assert ro.shape == (n, d) and rd.shape == (n, d)
 
     rd = rd.copy()
-    rd[rd == 0] = 1e-6  # avoid div overflow; logically safe to give it big t
+    rd[rd == 0] = 1e-6  # avoid div overflow
 
     ro = ro.reshape(n, d, 1)
     rd = rd.reshape(n, d, 1)
@@ -212,8 +212,7 @@ def integrated_pos_enc(mean, cov, num_freqs=10):
     device = mean.device
 
     freq_bands = 2 ** torch.arange(num_freqs, device=device).float() * np.pi  # (num_freqs,)
-    shape = (1, 1, 1, num_freqs)  # for broadcasting
-
+    shape = (1, 1, 1, num_freqs)  # i have no idea what im doing
     mean = mean.view(k, n, 3, 1)  # (k, n, 3, 1)
     cov_diag = torch.diagonal(cov, dim1=-2, dim2=-1)  # (k, n, 3)
 
@@ -245,7 +244,7 @@ def render_ray_bundle(model, ro, rd, t_min, t_max):
     ticks = step_size * torch.arange(k, device=ro.device)  # [k]
     ticks = ticks.view(k, 1)  # [k, 1]
     t_min = t_min.view(1, n)  # [1, n]
-    t_max = t_max.view(n, 1)  # [n, 1] (you can keep this as is if not used in this addition)
+    t_max = t_max.view(n, 1)  # [n, 1]
 
     dists = ticks + t_min  # [k, n]
 
@@ -380,10 +379,10 @@ def render_ray_bundle_old(model, ro, rd, t_min, t_max):
     else:
         rgbs = rgbs + bg_weight * 1.  # blend white bg color
 
-    # rgbs = rgbs.clamp(0, 1)  # don't clamp since this is can be SD latent features
+    # rgbs = rgbs.clamp(0, 1)  
 
     E_dists = (weights * dists).sum(dim=0)
-    bg_dist = 10.  # blend bg distance; just don't make it too large
+    bg_dist = 10.  # blend bg distance
     E_dists = E_dists + bg_weight * bg_dist
     return rgbs, E_dists, weights.squeeze(-1)
 

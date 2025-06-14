@@ -100,13 +100,10 @@ class MLPScoreAdapter:
         return sigma, rgb
 
     def denoise(self, zs, sigma, **score_conds):
-        # Implement denoising logic based on zs, sigma, and any conditioning
-        # If no special denoising, just forward through the network
-        return self.forward(zs)[1]  # return rgb part as example
+        return self.forward(zs)[1] 
 
     def prompts_emb(self, prompts):
-        # If your model supports prompt embeddings, implement this
-        # Otherwise return empty dict or None
+        # just in case
         return {}
     
     def get_num_samples(self, max_dist):
